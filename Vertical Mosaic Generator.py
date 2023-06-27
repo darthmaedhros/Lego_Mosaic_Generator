@@ -25,6 +25,7 @@ def read_color_palette(csv_file):
     Read the color palette from a CSV file and return it as a NumPy array.
     """
     color_palette = []
+    color_ids = []
 
     with open(csv_file, "r") as file:
         reader = csv.reader(file)
@@ -33,8 +34,9 @@ def read_color_palette(csv_file):
         for row in reader:
             rgb = hex_to_rgb(row[2])
             color_palette.append(rgb)
+            color_ids.append(row[0])
 
-    return np.array(color_palette)
+    return np.array(color_palette), color_ids
 
 
 def get_closest_color(pixel, color_palette):
@@ -67,13 +69,20 @@ def average_color(image, x, y, width, height):
     return avg_r, avg_g, avg_b
 
 
-def compare_images(original_image, transformed_images):
+def compare_images(original_image, color_pallete, color_ids, transformed_images):
     """
     Split the image into 10x10 sections. For each, compare the original to the transformed images, and return the closest transformed image.
     """
     width, height = original_image.size
 
     output_image = Image.new("RGB", (width, height))
+
+    # Setting up the LDraw file
+    ldraw_file = ""
+
+    # Define the LDraw file header
+    ldraw_file += "0 FILE Mosaic.ldr\n"
+    ldraw_file += "0 Mosaic from Image\n"
 
     for y in range(0, height, 10):  # Iterate vertically in 10-pixel increments
         for x in range(0, width, 10):  # Iterate horizontally in 10-pixel increments
@@ -93,14 +102,72 @@ def compare_images(original_image, transformed_images):
             # Return the closest transformed version
             output_image.paste(transformed_sections[closest_index], (x, y, x+10, y+10))
 
+            # Add elements to LDraw output file
+            ldraw_file += translate_to_ldraw(closest_index, transformed_sections[closest_index], color_palette, color_ids, x, y)
+
     output_image.save("combined_output.png", "PNG")
 
+    # Define the LDraw file footer
+    ldraw_file += "0 NOFILE\n"
 
-def process_image(image_path, color_palette, alignment):
+    # Save the LDraw file
+    with open("mosaic.ldr", "w") as file:
+        file.write(ldraw_file)
+
+
+def translate_to_ldraw(mode_index, image, color_palette, color_ids, x0, y0):
+    ldraw_file = ""
+    color_palette = [list(line) for line in color_palette]
+
+    # Determine mode from mode_index and ['v', 'h', 't']. Find cell_size and rotation matrix from that.
+    x_mod, y_mod, z_mod = 0, 0, 0
+
+    if mode_index == 0:
+        cell_width = 2
+        cell_height = 5
+
+        rotation_matrix = "0 -1 0 1 0 0 0 0 1"
+
+        part = 3024
+        x_mod = -2      # I think the rotations change the position. This is a filler parameter.
+
+    elif mode_index == 1:
+        cell_width = 5
+        cell_height = 2
+
+        rotation_matrix = "1 0 0 0 1 0 0 0 1"
+
+        part = 3024
+        y_mod = -10
+    else:
+        cell_width = 5
+        cell_height = 5
+
+        rotation_matrix = "1 0 0 0 0 -1 0 1 0"
+
+        part = "3070b"
+        z_mod = -10
+
+    # Loop over each cell. Find index of color, and use that to find id. Add piece.
+    for x in range(x0, x0+10, cell_width):
+        for y in range(y0, y0+10, cell_height):
+            # Get color from pixel
+            color = list(image.getpixel((x-x0, y-y0)))
+
+            color_id = color_ids[color_palette.index(color)]
+
+            # Convert coordinates to LDraw from Lego units.
+
+            ldraw_file += f"1 {color_id} {4*x + x_mod} {4*y + y_mod} {z_mod} {rotation_matrix} {part}.dat\n"
+
+    return ldraw_file
+
+
+def process_image(image_path, color_palette, color_ids, alignment):
     """
     Process the image by dividing it into a grid of 1x3 pixels and filling each section with the average color.
     """
-    target_height = 380  # Should be multiple of 5 & 2. Given in Lego units.
+    target_height = 5*48  # Should be multiple of 5 & 2. Given in Lego units.
 
     image = Image.open(image_path).convert("RGB")
     width, height = image.size
@@ -111,17 +178,10 @@ def process_image(image_path, color_palette, alignment):
     target_size = (target_width, target_height)
     image = image.resize(target_size)
 
-    if alignment == 'v':
-        cell_width = 2
-        cell_height = 5
-    else:
-        cell_width = 5
-        cell_height = 2
-
     if alignment == 'v' or alignment == 'c':
         cell_width = 2
         cell_height = 5
-        vertical_image, vertical_original_colors = generate_image(image, cell_width, cell_height)
+        vertical_image, vertical_original_colors = generate_image(image, color_palette, cell_width, cell_height)
 
         vertical_image.save("vertical_output.png", "PNG")
         vertical_original_colors.save("vertical_original_colors.png", "PNG")
@@ -129,7 +189,7 @@ def process_image(image_path, color_palette, alignment):
     if alignment == 'h' or alignment == 'c':
         cell_width = 5
         cell_height = 2
-        horizontal_image, horizontal_original_colors = generate_image(image, cell_width, cell_height)
+        horizontal_image, horizontal_original_colors = generate_image(image, color_palette, cell_width, cell_height)
 
         horizontal_image.save("horizontal_output.png", "PNG")
         horizontal_original_colors.save("horizontal_original_colors.png", "PNG")
@@ -137,16 +197,16 @@ def process_image(image_path, color_palette, alignment):
     if alignment == 't' or alignment == 'c':
         cell_width = 5
         cell_height = 5
-        top_down_image, top_down_original_colors = generate_image(image, cell_width, cell_height)
+        top_down_image, top_down_original_colors = generate_image(image, color_palette, cell_width, cell_height)
 
         top_down_image.save("top_down_output.png", "PNG")
         top_down_original_colors.save("top_down_original_colors.png", "PNG")
 
     if alignment == 'c':
-        compare_images(image, [vertical_image, horizontal_image, top_down_image])
+        compare_images(image, color_palette, color_ids, [vertical_image, horizontal_image, top_down_image])
 
 
-def generate_image(image, cell_width, cell_height):
+def generate_image(image, color_pallete, cell_width, cell_height):
     """
     Generate a single image and fill with the average color.
     """
@@ -169,6 +229,6 @@ def generate_image(image, cell_width, cell_height):
 
 # Example usage
 csv_file = "colors.csv"
-color_palette = read_color_palette(csv_file)
-image_path = "input.png"
-process_image(image_path, color_palette, 'c')
+color_palette, color_ids = read_color_palette(csv_file)
+image_path = "input/Greenpath_East_Bench_Gridded.png"
+process_image(image_path, color_palette, color_ids, 'c')
