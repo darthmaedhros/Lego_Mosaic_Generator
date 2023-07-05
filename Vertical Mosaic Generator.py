@@ -44,7 +44,16 @@ def get_closest_color(pixel, color_palette):
     Find the closest color from the given color palette to the given pixel.
     """
     distances = [euclidean_distance(pixel, color) for color in color_palette]
-    closest_color_index = np.argmin(distances)
+
+    indices = np.argpartition(distances, 2)[:2]
+
+    # If the two closest colors are within a certain percent of each other, choose randomly from them.
+    # This helps with blending at gradual color transitions.
+    if abs(distances[indices[0]] - distances[indices[1]]) <= 0.20*abs(distances[indices[0]]):
+        closest_color_index = np.random.choice(indices)
+    else:
+        closest_color_index = np.argmin(distances)
+
     return color_palette[closest_color_index]
 
 
@@ -156,6 +165,8 @@ def translate_to_ldraw(mode_index, image, color_palette, color_ids, x0, y0):
 
             color_id = color_ids[color_palette.index(color)]
 
+            used_colors.add(color_id)
+
             # Convert coordinates to LDraw from Lego units.
 
             ldraw_file += f"1 {color_id} {4*x + x_mod} {4*y + y_mod} {z_mod} {rotation_matrix} {part}.dat\n"
@@ -226,9 +237,12 @@ def generate_image(image, color_pallete, cell_width, cell_height):
 
     return new_image, original_color
 
+used_colors = {"0"}
 
 # Example usage
-csv_file = "colors.csv"
+csv_file = "restricted_colors.csv"
 color_palette, color_ids = read_color_palette(csv_file)
-image_path = "input/Greenpath_East_Bench_Gridded.png"
+image_path = "input/cloud-city.jpeg"
 process_image(image_path, color_palette, color_ids, 'c')
+
+print(used_colors)
