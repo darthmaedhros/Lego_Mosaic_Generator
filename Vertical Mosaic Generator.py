@@ -1,4 +1,6 @@
 import csv
+import random
+
 import numpy as np
 from PIL import Image
 
@@ -45,16 +47,16 @@ def get_closest_color(pixel, color_palette):
     """
     distances = [euclidean_distance(pixel, color) for color in color_palette]
 
-    indices = np.argpartition(distances, 2)[:2]
+    sorted = np.argsort(distances)
 
-    # If the two closest colors are within a certain percent of each other, choose randomly from them.
-    # This helps with blending at gradual color transitions.
-    if abs(distances[indices[0]] - distances[indices[1]]) <= 0.20*abs(distances[indices[0]]):
-        closest_color_index = np.random.choice(indices)
-    else:
-        closest_color_index = np.argmin(distances)
+    # Parameter to adjust the separation between colors. Lower means more randomness. 7-20 seems reasonable.
+    weight = 7
+    weighted_distance = np.reciprocal(np.sort(distances)) ** weight
 
-    return color_palette[closest_color_index]
+    # Choose random number between 0 and 1. Choose closest index that is greater than value.
+    closest_color = random.choices(sorted, weighted_distance)[0]
+
+    return color_palette[closest_color]
 
 
 def average_color(image, x, y, width, height):
@@ -242,7 +244,7 @@ used_colors = {"0"}
 # Example usage
 csv_file = "restricted_colors.csv"
 color_palette, color_ids = read_color_palette(csv_file)
-image_path = "input/cloud-city.jpeg"
+image_path = "input/vibrant-chicago-skyline-sunset-jasmin-omerovic.jpg"
 process_image(image_path, color_palette, color_ids, 'c')
 
 print(used_colors)
