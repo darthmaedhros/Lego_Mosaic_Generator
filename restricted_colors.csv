@@ -24,7 +24,7 @@ id,name,rgb,is_trans
 34,Trans-Green,84B68D,t
 36,Trans-Red,C91A09,t
 40,Trans-Brown,635F52,t
-41,Trans-Light Blue,AEEFEC,t
+43,Trans-Light Blue,AEEFEC,t
 42,Trans-Neon Green,F8F184,t
 46,Trans-Yellow,F5CD2F,t
 47,Trans-Clear,FCFCFC,t
@@ -38,8 +38,8 @@ id,name,rgb,is_trans
 84,Medium Nougat,AA7D55,f
 85,Dark Purple,3F3691,f
 92,Nougat,D09168,f
-158,Yellowish Green,DFEEA5,f
-182,Trans-Orange,F08F1C,t
+326,Yellowish Green,DFEEA5,f
+57,Trans-Orange,F08F1C,t
 191,Bright Light Orange,F8BB3D,f
 212,Bright Light Blue,9FC3E9,f
 226,Bright Light Yellow,FFF03A,f
@@ -52,11 +52,11 @@ id,name,rgb,is_trans
 321,Dark Azure,078BC9,f
 322,Medium Azure,36AEBF,f
 323,Light Aqua,ADC3C0,f
-326,Olive Green,9B9A5A,f
+330,Olive Green,9B9A5A,f
 378,Sand Green,A0BCAC,f
 379,Sand Blue,6074A1,f
 462,Medium Orange,FFA70B,f
 484,Dark Orange,A95500,f
 503,Very Light Gray,E6E3DA,f
-1050,Coral,FF698F,f
-1064,Fabuland Red,FF8014,f
+353,Coral,FF698F,f
+508,Fabuland Red,FF8014,f

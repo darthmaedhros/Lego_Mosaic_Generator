@@ -49,12 +49,16 @@ def get_closest_color(pixel, color_palette):
 
     sorted = np.argsort(distances)
 
-    # Parameter to adjust the separation between colors. Lower means more randomness. 7-20 seems reasonable.
-    weight = 7
-    weighted_distance = np.reciprocal(np.sort(distances)) ** weight
+    # If there is an exact match, return it without further calculation.
+    if distances[sorted[0]] == 0:
+        closest_color = sorted[0]
+    else:
+        # Parameter to adjust the separation between colors. Lower means more randomness. 7-20 seems reasonable.
+        weight = 10
+        weighted_distance = np.reciprocal(np.sort(distances)) ** weight
 
-    # Choose random number between 0 and 1. Choose closest index that is greater than value.
-    closest_color = random.choices(sorted, weighted_distance)[0]
+        # Choose random number between 0 and 1. Choose closest index that is greater than value.
+        closest_color = random.choices(sorted, weighted_distance)[0]
 
     return color_palette[closest_color]
 
@@ -239,12 +243,13 @@ def generate_image(image, color_pallete, cell_width, cell_height):
 
     return new_image, original_color
 
+
 used_colors = {"0"}
 
 # Example usage
 csv_file = "restricted_colors.csv"
 color_palette, color_ids = read_color_palette(csv_file)
-image_path = "input/vibrant-chicago-skyline-sunset-jasmin-omerovic.jpg"
+image_path = "input/adobestock49756499.jpeg"
 process_image(image_path, color_palette, color_ids, 'c')
 
 print(used_colors)
