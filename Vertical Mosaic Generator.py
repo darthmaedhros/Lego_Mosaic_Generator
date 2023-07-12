@@ -5,13 +5,13 @@ import numpy as np
 from PIL import Image
 
 
-def euclidean_distance(color1, color2):
-    """
-    Calculate the Euclidean distance between two colors.
-    """
-    r1, g1, b1 = color1
-    r2, g2, b2 = color2
-    return ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
+# def euclidean_distance(color1, color2):
+#     """
+#     Calculate the Euclidean distance between two colors.
+#     """
+#     r1, g1, b1 = color1
+#     r2, g2, b2 = color2
+#     return ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
 
 
 def hex_to_rgb(hex_value):
@@ -41,47 +41,64 @@ def read_color_palette(csv_file):
     return np.array(color_palette), color_ids
 
 
-def get_closest_color(pixel, color_palette):
-    """
-    Find the closest color from the given color palette to the given pixel.
-    """
-    distances = [euclidean_distance(pixel, color) for color in color_palette]
+# def get_closest_color(pixel, color_palette):
+#     """
+#     Find the closest color from the given color palette to the given pixel.
+#     """
+#     distances = [euclidean_distance(pixel, color) for color in color_palette]
+#
+#     sorted = np.argsort(distances)
+#
+#     # If there is an exact match, return it without further calculation.
+#     if distances[sorted[0]] == 0:
+#         closest_color = sorted[0]
+#     else:
+#         # Parameter to adjust the separation between colors. Lower means more randomness. 7-20 seems reasonable.
+#         weight = 10
+#         weighted_distance = np.reciprocal(np.sort(distances)) ** weight
+#
+#         # Choose random number between 0 and 1. Choose closest index that is greater than value.
+#         closest_color = random.choices(sorted, weighted_distance)[0]
+#
+#     return color_palette[closest_color]
 
-    sorted = np.argsort(distances)
 
-    # If there is an exact match, return it without further calculation.
-    if distances[sorted[0]] == 0:
-        closest_color = sorted[0]
-    else:
-        # Parameter to adjust the separation between colors. Lower means more randomness. 7-20 seems reasonable.
-        weight = 10
-        weighted_distance = np.reciprocal(np.sort(distances)) ** weight
+def palettise_image(image, color_palette):
+    # Convert image to Numpy array
+    image = np.asarray(image)
 
-        # Choose random number between 0 and 1. Choose closest index that is greater than value.
-        closest_color = random.choices(sorted, weighted_distance)[0]
+    # Calculate distances
+    distance = np.linalg.norm(image[:, :, None] - color_palette[None, None, :], axis=3)
 
-    return color_palette[closest_color]
+    # Generate image using palette. Without data type, produces noise. Mismatch with Image.fromarray.
+    palettised = np.argmin(distance, axis=2).astype(np.uint8)
+
+    result = color_palette[palettised].astype(np.uint8)
+
+    palettised_image = Image.fromarray(result, 'RGB')
+
+    return palettised_image
 
 
-def average_color(image, x, y, width, height):
-    """
-    Calculate the average color of a rectangular section in an image.
-    """
-    r_total, g_total, b_total = 0, 0, 0
-    pixel_count = width * height
-
-    for i in range(x, x + width):
-        for j in range(y, y + height):
-            r, g, b = image.getpixel((i, j))
-            r_total += r
-            g_total += g
-            b_total += b
-
-    avg_r = int(r_total / pixel_count)
-    avg_g = int(g_total / pixel_count)
-    avg_b = int(b_total / pixel_count)
-
-    return avg_r, avg_g, avg_b
+# def average_color(image, x, y, width, height):
+#     """
+#     Calculate the average color of a rectangular section in an image.
+#     """
+#     r_total, g_total, b_total = 0, 0, 0
+#     pixel_count = width * height
+#
+#     for i in range(x, x + width):
+#         for j in range(y, y + height):
+#             r, g, b = image.getpixel((i, j))
+#             r_total += r
+#             g_total += g
+#             b_total += b
+#
+#     avg_r = int(r_total / pixel_count)
+#     avg_g = int(g_total / pixel_count)
+#     avg_b = int(b_total / pixel_count)
+#
+#     return avg_r, avg_g, avg_b
 
 
 def compare_images(original_image, color_pallete, color_ids, transformed_images):
@@ -121,6 +138,7 @@ def compare_images(original_image, color_pallete, color_ids, transformed_images)
             ldraw_file += translate_to_ldraw(closest_index, transformed_sections[closest_index], color_palette, color_ids, x, y)
 
     output_image.save("combined_output.png", "PNG")
+    output_image.show()
 
     # Define the LDraw file footer
     ldraw_file += "0 NOFILE\n"
@@ -195,29 +213,30 @@ def process_image(image_path, color_palette, color_ids, alignment):
     target_size = (target_width, target_height)
     image = image.resize(target_size)
 
+    # Test function call
+    palettised_image = palettise_image(image, color_palette)
+    palettised_image.save("palettised_image.png")
+
     if alignment == 'v' or alignment == 'c':
         cell_width = 2
         cell_height = 5
-        vertical_image, vertical_original_colors = generate_image(image, color_palette, cell_width, cell_height)
+        vertical_image = generate_image(image, color_palette, cell_width, cell_height)
 
         vertical_image.save("vertical_output.png", "PNG")
-        vertical_original_colors.save("vertical_original_colors.png", "PNG")
 
     if alignment == 'h' or alignment == 'c':
         cell_width = 5
         cell_height = 2
-        horizontal_image, horizontal_original_colors = generate_image(image, color_palette, cell_width, cell_height)
+        horizontal_image = generate_image(image, color_palette, cell_width, cell_height)
 
         horizontal_image.save("horizontal_output.png", "PNG")
-        horizontal_original_colors.save("horizontal_original_colors.png", "PNG")
 
     if alignment == 't' or alignment == 'c':
         cell_width = 5
         cell_height = 5
-        top_down_image, top_down_original_colors = generate_image(image, color_palette, cell_width, cell_height)
+        top_down_image = generate_image(image, color_palette, cell_width, cell_height)
 
         top_down_image.save("top_down_output.png", "PNG")
-        top_down_original_colors.save("top_down_original_colors.png", "PNG")
 
     if alignment == 'c':
         compare_images(image, color_palette, color_ids, [vertical_image, horizontal_image, top_down_image])
@@ -229,19 +248,23 @@ def generate_image(image, color_pallete, cell_width, cell_height):
     """
     width, height = image.size
 
-    new_image = Image.new("RGB", (width, height))
-    original_color = Image.new("RGB", (width, height))
+    image = np.asarray(image)
+    new_image = image.copy()
+
+    # new_image = Image.new("RGB", (width, height))
+    # original_color = Image.new("RGB", (width, height))
 
     for x in range(0, width, cell_width):
         for y in range(0, height, cell_height):
-            avg_color = average_color(image, x, y, cell_width, cell_height)
-            closest_color = get_closest_color(avg_color, color_palette)
-            for i in range(x, x + cell_width):
-                for j in range(y, y + cell_height):
-                    new_image.putpixel((i, j), tuple(closest_color))
-                    original_color.putpixel((i, j), avg_color)
+            avg_color = np.mean(image[y:y+cell_height, x:x+cell_width, :], axis=(0,1))
 
-    return new_image, original_color
+            # closest_color = get_closest_color(avg_color, color_palette)
+
+            new_image[y:y+cell_height, x:x+cell_width] = avg_color
+
+    new_image = palettise_image(new_image, color_palette)
+
+    return new_image
 
 
 used_colors = {"0"}
@@ -249,7 +272,7 @@ used_colors = {"0"}
 # Example usage
 csv_file = "restricted_colors.csv"
 color_palette, color_ids = read_color_palette(csv_file)
-image_path = "input/adobestock49756499.jpeg"
+image_path = "input/cloud-city.jpeg"
 process_image(image_path, color_palette, color_ids, 'c')
 
 print(used_colors)
