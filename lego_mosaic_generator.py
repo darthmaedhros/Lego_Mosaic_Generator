@@ -46,19 +46,18 @@ def palettise_image(image, color_palette, cell_size, weight):
     else:
         sorted_indices = np.argsort(distance)
 
+        distance = np.where(distance == 0, 1*10**-6, distance)
         weighted_distance = np.reciprocal(np.sort(distance, axis=2)) ** weight
+        # weighted_distance = np.exp(np.sort(distance, axis=2) * -weight)
+
+        # The log function generates spotty output for the weights I tried.
+        # weighted_distance = np.divide(np.log10(np.sort(distance, axis=2)), np.log10(weight))
 
         palettised = np.zeros([image.shape[0], image.shape[1]]).astype(np.uint8)
         for y in range(0, image.shape[0], cell_size[0]):
             for x in range(0, image.shape[1], cell_size[1]):
                 palettised[y:y+cell_size[0], x:x+cell_size[1]] = random.choices(sorted_indices[y, x, :], weighted_distance[y, x, :])[0]
 
-    #         distances = distance[x, y, :]
-    #         closest_color = get_closest_color(distances, color_palette, weight)
-    #
-    #         image[x, y] = closest_color.astype(np.uint8)
-
-    # palettised_image = Image.fromarray(image, 'RGB')
 
     result = color_palette[palettised].astype(np.uint8)
     palettised_image = Image.fromarray(result, 'RGB')
@@ -103,7 +102,7 @@ def compare_images(original_image, color_pallete, color_ids, transformed_images)
             ldraw_file += translate_to_ldraw(closest_index, transformed_sections[closest_index], color_palette, color_ids, x, y)
 
     output_image.save("combined_output.png", "PNG")
-    output_image.show()
+    # output_image.show()
 
     # Define the LDraw file footer
     ldraw_file += "0 NOFILE\n"
@@ -163,13 +162,15 @@ def translate_to_ldraw(mode_index, image, color_palette, color_ids, x0, y0):
     return ldraw_file
 
 
-def process_image(image_path, color_palette, color_ids, alignment, weight):
+def process_image(image, given_color_palette, color_ids, alignment, weight, algorithm):
     """
     Process the image by dividing it into a grid of 1x3 pixels and filling each section with the average color.
     """
+    global color_palette
+    color_palette = given_color_palette
+
     target_height = 5*48  # Should be multiple of 5 & 2. Given in Lego units.
 
-    image = Image.open(image_path).convert("RGB")
     width, height = image.size
     aspect_ratio = width / height
     target_width = int(aspect_ratio * target_height)
@@ -204,7 +205,7 @@ def process_image(image_path, color_palette, color_ids, alignment, weight):
         compare_images(image, color_palette, color_ids, [vertical_image, horizontal_image, top_down_image])
 
 
-def generate_image(image, color_pallete, cell_width, cell_height, weight):
+def generate_image(image, color_palette, cell_width, cell_height, weight):
     """
     Generate a single image and fill with the average color.
     """
@@ -230,9 +231,12 @@ def generate_image(image, color_pallete, cell_width, cell_height, weight):
 used_colors = {"0"}
 
 # Example usage
-csv_file = "restricted_colors.csv"
-color_palette, color_ids = read_color_palette(csv_file)
-image_path = "input/Dunwall Clock Tower.jpg"
-process_image(image_path, color_palette, color_ids, 'c', weight=7)
-
-print(used_colors)
+# csv_file = "restricted_colors.csv"
+# color_palette, color_ids = read_color_palette(csv_file)
+#
+# image_path = "input/Dunwall Clock Tower.jpg"
+# image = Image.open(image_path).convert("RGB")
+#
+# process_image(image, color_palette, color_ids, 'c', weight=10)
+#
+# print(used_colors)
