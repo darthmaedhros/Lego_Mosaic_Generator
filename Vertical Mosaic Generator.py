@@ -5,15 +5,6 @@ import numpy as np
 from PIL import Image
 
 
-# def euclidean_distance(color1, color2):
-#     """
-#     Calculate the Euclidean distance between two colors.
-#     """
-#     r1, g1, b1 = color1
-#     r2, g2, b2 = color2
-#     return ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
-
-
 def hex_to_rgb(hex_value):
     """
     Convert a hexadecimal color value to RGB integers.
@@ -41,64 +32,38 @@ def read_color_palette(csv_file):
     return np.array(color_palette), color_ids
 
 
-# def get_closest_color(pixel, color_palette):
-#     """
-#     Find the closest color from the given color palette to the given pixel.
-#     """
-#     distances = [euclidean_distance(pixel, color) for color in color_palette]
-#
-#     sorted = np.argsort(distances)
-#
-#     # If there is an exact match, return it without further calculation.
-#     if distances[sorted[0]] == 0:
-#         closest_color = sorted[0]
-#     else:
-#         # Parameter to adjust the separation between colors. Lower means more randomness. 7-20 seems reasonable.
-#         weight = 10
-#         weighted_distance = np.reciprocal(np.sort(distances)) ** weight
-#
-#         # Choose random number between 0 and 1. Choose closest index that is greater than value.
-#         closest_color = random.choices(sorted, weighted_distance)[0]
-#
-#     return color_palette[closest_color]
-
-
-def palettise_image(image, color_palette):
+def palettise_image(image, color_palette, cell_size, weight):
     # Convert image to Numpy array
-    image = np.asarray(image)
+    image = np.array(image)
 
     # Calculate distances
     distance = np.linalg.norm(image[:, :, None] - color_palette[None, None, :], axis=3)
 
     # Generate image using palette. Without data type, produces noise. Mismatch with Image.fromarray.
-    palettised = np.argmin(distance, axis=2).astype(np.uint8)
+    if weight == 0:
+        palettised = np.argmin(distance, axis=2).astype(np.uint8)
+
+    else:
+        sorted_indices = np.argsort(distance)
+
+        weighted_distance = np.reciprocal(np.sort(distance, axis=2)) ** weight
+
+        palettised = np.zeros([image.shape[0], image.shape[1]]).astype(np.uint8)
+        for y in range(0, image.shape[0], cell_size[0]):
+            for x in range(0, image.shape[1], cell_size[1]):
+                palettised[y:y+cell_size[0], x:x+cell_size[1]] = random.choices(sorted_indices[y, x, :], weighted_distance[y, x, :])[0]
+
+    #         distances = distance[x, y, :]
+    #         closest_color = get_closest_color(distances, color_palette, weight)
+    #
+    #         image[x, y] = closest_color.astype(np.uint8)
+
+    # palettised_image = Image.fromarray(image, 'RGB')
 
     result = color_palette[palettised].astype(np.uint8)
-
     palettised_image = Image.fromarray(result, 'RGB')
 
     return palettised_image
-
-
-# def average_color(image, x, y, width, height):
-#     """
-#     Calculate the average color of a rectangular section in an image.
-#     """
-#     r_total, g_total, b_total = 0, 0, 0
-#     pixel_count = width * height
-#
-#     for i in range(x, x + width):
-#         for j in range(y, y + height):
-#             r, g, b = image.getpixel((i, j))
-#             r_total += r
-#             g_total += g
-#             b_total += b
-#
-#     avg_r = int(r_total / pixel_count)
-#     avg_g = int(g_total / pixel_count)
-#     avg_b = int(b_total / pixel_count)
-#
-#     return avg_r, avg_g, avg_b
 
 
 def compare_images(original_image, color_pallete, color_ids, transformed_images):
@@ -198,7 +163,7 @@ def translate_to_ldraw(mode_index, image, color_palette, color_ids, x0, y0):
     return ldraw_file
 
 
-def process_image(image_path, color_palette, color_ids, alignment):
+def process_image(image_path, color_palette, color_ids, alignment, weight):
     """
     Process the image by dividing it into a grid of 1x3 pixels and filling each section with the average color.
     """
@@ -212,29 +177,26 @@ def process_image(image_path, color_palette, color_ids, alignment):
                 target_width % 10)  # Ensure width is divisible by five and two. Might mess with aspect ratio.
     target_size = (target_width, target_height)
     image = image.resize(target_size)
-
-    # Test function call
-    palettised_image = palettise_image(image, color_palette)
-    palettised_image.save("palettised_image.png")
+    image.save("resized_image.png")
 
     if alignment == 'v' or alignment == 'c':
         cell_width = 2
         cell_height = 5
-        vertical_image = generate_image(image, color_palette, cell_width, cell_height)
+        vertical_image = generate_image(image, color_palette, cell_width, cell_height, weight)
 
         vertical_image.save("vertical_output.png", "PNG")
 
     if alignment == 'h' or alignment == 'c':
         cell_width = 5
         cell_height = 2
-        horizontal_image = generate_image(image, color_palette, cell_width, cell_height)
+        horizontal_image = generate_image(image, color_palette, cell_width, cell_height, weight)
 
         horizontal_image.save("horizontal_output.png", "PNG")
 
     if alignment == 't' or alignment == 'c':
         cell_width = 5
         cell_height = 5
-        top_down_image = generate_image(image, color_palette, cell_width, cell_height)
+        top_down_image = generate_image(image, color_palette, cell_width, cell_height, weight)
 
         top_down_image.save("top_down_output.png", "PNG")
 
@@ -242,13 +204,13 @@ def process_image(image_path, color_palette, color_ids, alignment):
         compare_images(image, color_palette, color_ids, [vertical_image, horizontal_image, top_down_image])
 
 
-def generate_image(image, color_pallete, cell_width, cell_height):
+def generate_image(image, color_pallete, cell_width, cell_height, weight):
     """
     Generate a single image and fill with the average color.
     """
     width, height = image.size
 
-    image = np.asarray(image)
+    image = np.array(image)
     new_image = image.copy()
 
     # new_image = Image.new("RGB", (width, height))
@@ -256,13 +218,11 @@ def generate_image(image, color_pallete, cell_width, cell_height):
 
     for x in range(0, width, cell_width):
         for y in range(0, height, cell_height):
-            avg_color = np.mean(image[y:y+cell_height, x:x+cell_width, :], axis=(0,1))
-
-            # closest_color = get_closest_color(avg_color, color_palette)
+            avg_color = np.mean(image[y:y+cell_height, x:x+cell_width, :], axis=(0, 1))
 
             new_image[y:y+cell_height, x:x+cell_width] = avg_color
 
-    new_image = palettise_image(new_image, color_palette)
+    new_image = palettise_image(new_image, color_palette, [cell_height, cell_width], weight)
 
     return new_image
 
@@ -272,7 +232,7 @@ used_colors = {"0"}
 # Example usage
 csv_file = "restricted_colors.csv"
 color_palette, color_ids = read_color_palette(csv_file)
-image_path = "input/cloud-city.jpeg"
-process_image(image_path, color_palette, color_ids, 'c')
+image_path = "input/Dunwall Clock Tower.jpg"
+process_image(image_path, color_palette, color_ids, 'c', weight=7)
 
 print(used_colors)
