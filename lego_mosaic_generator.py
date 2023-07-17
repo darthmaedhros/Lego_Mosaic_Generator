@@ -56,7 +56,7 @@ def palettise_image(image, color_palette, cell_size, weight):
         palettised = np.zeros([image.shape[0], image.shape[1]]).astype(np.uint8)
         for y in range(0, image.shape[0], cell_size[0]):
             for x in range(0, image.shape[1], cell_size[1]):
-                palettised[y:y+cell_size[0], x:x+cell_size[1]] = random.choices(sorted_indices[y, x, :], weighted_distance[y, x, :])[0]
+                palettised[y:y+cell_size[0], x:x+cell_size[1]] = random.choices(sorted_indices[y, x, :], weights=weighted_distance[y, x, :])[0]
 
 
     result = color_palette[palettised].astype(np.uint8)
@@ -162,20 +162,36 @@ def translate_to_ldraw(mode_index, image, color_palette, color_ids, x0, y0):
     return ldraw_file
 
 
-def process_image(image, given_color_palette, color_ids, alignment, weight, algorithm):
+def process_image(image, given_color_palette, color_ids, alignment, weight, algorithm, target_size, width_or_height):
     """
     Process the image by dividing it into a grid of 1x3 pixels and filling each section with the average color.
     """
     global color_palette
     color_palette = given_color_palette
 
-    target_height = 5*48  # Should be multiple of 5 & 2. Given in Lego units.
-
     width, height = image.size
     aspect_ratio = width / height
-    target_width = int(aspect_ratio * target_height)
-    target_width = target_width - (
-                target_width % 10)  # Ensure width is divisible by five and two. Might mess with aspect ratio.
+
+    if width_or_height == "Height":
+        target_height = 5*target_size  # Should be multiple of 5 & 2. Given in Lego units.
+
+        target_width = int(aspect_ratio * target_height)
+        target_width = target_width - (
+                    target_width % 10)  # Ensure width is divisible by five and two. Might mess with aspect ratio.
+    elif width_or_height == "Width":
+        target_width = 5 * target_size  # Should be multiple of 5 & 2. Given in Lego units.
+
+        target_height = int(target_width / aspect_ratio)
+        target_height = target_height - (
+                target_height % 10)  # Ensure width is divisible by five and two. Might mess with aspect ratio.
+    else:
+        # Default to 48 studs tall for now
+        target_height = 5*48  # Should be multiple of 5 & 2. Given in Lego units.
+
+        target_width = int(aspect_ratio * target_height)
+        target_width = target_width - (
+                    target_width % 10)  # Ensure width is divisible by five and two. Might mess with aspect ratio.
+
     target_size = (target_width, target_height)
     image = image.resize(target_size)
     image.save("resized_image.png")

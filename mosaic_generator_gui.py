@@ -13,10 +13,12 @@ def generate_mosaic():
         selected_option = option.get()
         weight_value = weight_slider.get()
         algorithm = dropdown.get()
+        size = int(size_box.get())
+        width_or_height = size_dropdown.get()
 
         # Perform image processing based on selected options
         # Replace this with your own image processing logic
-        process_image(image, color_palette, color_ids, selected_option, weight_value, algorithm)
+        process_image(image, color_palette, color_ids, selected_option, weight_value, algorithm, target_size=size, width_or_height=width_or_height)
 
 
         if selected_option == 'v':
@@ -37,7 +39,7 @@ def open_image():
     global image
     file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.png *.jpg *.jpeg")])
     if file_path:
-        image = Image.open(file_path)
+        image = Image.open(file_path).convert("RGB")
         display_image(image, input_label)
         process_button.config(state="normal")
 
@@ -76,22 +78,35 @@ control_frame = tk.Frame(window)
 control_frame.pack(side="left", padx=10, pady=10)
 
 # Create the option selection area
-option_frame = tk.LabelFrame(control_frame, text="Options")
+option_frame = tk.LabelFrame(control_frame, text="Generation Style")
 option_frame.pack(pady=10)
 
 option = tk.StringVar(value="c")
 
-v_button = tk.Radiobutton(option_frame, text="V", variable=option, value="v")
+v_button = tk.Radiobutton(option_frame, text="Vertically stacked", variable=option, value="v")
 v_button.pack(anchor='w')
 
-h_button = tk.Radiobutton(option_frame, text="H", variable=option, value="h")
+h_button = tk.Radiobutton(option_frame, text="Horizontally stacked", variable=option, value="h")
 h_button.pack(anchor='w')
 
-t_button = tk.Radiobutton(option_frame, text="T", variable=option, value="t")
+t_button = tk.Radiobutton(option_frame, text="Top-down", variable=option, value="t")
 t_button.pack(anchor='w')
 
-c_button = tk.Radiobutton(option_frame, text="C", variable=option, value="c")
+c_button = tk.Radiobutton(option_frame, text="Best combination", variable=option, value="c")
 c_button.pack(anchor='w')
+
+
+# Create the output size selection area
+size_frame = tk.LabelFrame(control_frame, text="Output Size")
+size_frame.pack(pady=10)
+
+size_box = tk.Entry(size_frame)
+size_box.insert(0, "48")
+size_box.pack()
+
+size_dropdown = ttk.Combobox(size_frame, values=["Height", "Width"])
+size_dropdown.current(0)
+size_dropdown.pack()
 
 # Create the weight slider
 weight_frame = tk.LabelFrame(control_frame, text="Weight")
@@ -109,16 +124,16 @@ dropdown = ttk.Combobox(algorithm_frame, values=["Algorithm 1", "Algorithm 2", "
 dropdown.current(0)
 dropdown.pack()
 
-# Create the process button
-process_button = tk.Button(control_frame, text="Generate Mosaic", command=generate_mosaic, state='disabled')
-process_button.pack(pady=10)
-
 # Create the open button
 open_button = tk.Button(control_frame, text="Open Image", command=open_image)
 open_button.pack(pady=10)
 
+# Create the process button
+process_button = tk.Button(control_frame, text="Generate Mosaic", command=generate_mosaic, state='disabled')
+process_button.pack(pady=10)
+
 # Create a frame for the input and output images
-image_frame = tk.Frame(window)
+image_frame = tk.Frame(window, width=300)
 image_frame.pack(side="right", padx=10, pady=10, fill=tk.BOTH, expand=True)
 
 # Create the input image display area
