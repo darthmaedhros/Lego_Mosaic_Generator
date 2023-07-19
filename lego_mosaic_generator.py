@@ -32,6 +32,35 @@ def read_color_palette(csv_file):
     return np.array(color_palette), color_ids
 
 
+def palettise_parts(parts, color_palette, weight, target_size):
+    palettised_image = np.zeros((target_size[1], target_size[0], 3)).astype(np.uint8)
+
+    for part in parts:
+        distance = np.linalg.norm(part.color - color_palette[None, None, :], axis=3).flatten()
+
+        # Generate image using palette. Without data type, produces noise. Mismatch with Image.fromarray.
+        if weight == 0:
+            palettised_index = np.argmin(distance).astype(np.uint8)
+
+        else:
+            sorted_indices = np.argsort(distance)
+
+            distance = np.where(distance == 0, 1 * 10 ** -6, distance)
+            weighted_distance = np.reciprocal(np.sort(distance)) ** weight
+            # weighted_distance = np.exp(np.sort(distance, axis=2) * -weight)
+
+            # The log function generates spotty output for the weights I tried.
+            # weighted_distance = np.divide(np.log10(np.sort(distance, axis=2)), np.log10(weight))
+
+            palettised_index = random.choices(sorted_indices, weights=weighted_distance)[0]
+
+        part.palettised_color = color_palette[palettised_index].astype(np.uint8)
+
+        palettised_image[part.pos[0]:part.pos[0]+part.size[0], part.pos[1]:part.pos[1]+part.size[1]] = part.palettised_color
+
+    return palettised_image, parts
+
+
 def palettise_image(image, color_palette, cell_size, weight):
     # Convert image to Numpy array
     image = np.array(image)
@@ -220,6 +249,18 @@ def process_image(image, given_color_palette, color_ids, alignment, weight, algo
     if alignment == 'c':
         compare_images(image, color_palette, color_ids, [vertical_image, horizontal_image, top_down_image])
 
+    if alignment == 'new_tiling_method':
+        tiled_image, parts = generate_tiling(image, image, target_size)
+
+        tiled_image = Image.fromarray(tiled_image)
+
+        tiled_image.save("new_tiling.png", "PNG")
+
+        palettised_image, parts = palettise_parts(parts, color_palette, weight, target_size)
+        palettised_image = Image.fromarray(palettised_image, "RGB")
+
+        palettised_image.save("new_tiling_palettised.png", "PNG")
+
 
 def generate_image(image, color_palette, cell_width, cell_height, weight):
     """
@@ -244,6 +285,184 @@ def generate_image(image, color_palette, cell_width, cell_height, weight):
     return new_image
 
 
+class Part:
+    pos = []
+    size = []
+    color = [0, 0, 0]
+    palettised_color = [255, 255, 255]
+    top_right_point = []
+    bottom_left_point = []
+
+    def __init__(self, pos, size, color):
+        self.pos = pos
+        self.size = size
+        self.color = color
+
+        self.top_right_point = [self.pos[0] + self.size[0], self.pos[1]]
+        self.bottom_left_point = [self.pos[0], self.pos[1] + self.size[1]]
+
+
+def generate_tiling(original_image, scaled_image, target_size):
+    tiled_image = np.array(scaled_image)
+    tiled_image.fill(21)    # 21 is to set everything to an arbitrary color. 0 or 255 could legitimately occur.
+
+    points = [[0, 0]]
+    parts = []
+
+    i = 0
+
+    while len(points) > 0:
+        point = points.pop(0)
+
+        # A point is valid if it is not on the right or bottom edge of the map, and there is nothing directly to the
+        # right or bottom or it.
+        if (point[0] < target_size[1] and point[1] < target_size[0]) and np.all(tiled_image[point[0]][point[1]] == 21):
+            new_part = best_part(original_image, np.array(original_image), tiled_image, point, target_size)
+
+            if new_part is not None:
+                tiled_image[new_part.pos[0]:new_part.pos[0]+new_part.size[0], new_part.pos[1]:new_part.pos[1]+new_part.size[1]] = new_part.color
+
+                points.append(new_part.top_right_point)
+                points.append(new_part.bottom_left_point)
+
+                points.sort()
+
+                parts.append(new_part)
+
+    return tiled_image, parts
+
+
+def best_part(original_image, scaled_image, tiled_image, point, target_size):
+    sizes = [[2, 5], [5, 5], [5, 2]]
+    # offsets_to_check = [[[[-1, 0], [-2, 0]], [[0, -1], [0, -2]], [[4, 0], [5, 0]]],
+    #                     [[[-1, 0], [-2, 0]], [[0, -1], [0, -2]], [[5, 0], [6, 0]], [[0, 5], [0, 6]]],
+    #                     [[[-1, 0], [-2, 0]], [[0, -1], [0, -2]], [[0, 4], [0, 5]]]]
+
+    scores = []
+    colors = []
+
+    for i in range(len(sizes)):
+        size = sizes[i]
+        # offsets = offsets_to_check[i]
+        valid = False
+
+        # Check for intersections
+        if (point[0] + size[0] <= target_size[1] and point[1] + size[1] <= target_size[0]) and np.all(tiled_image[point[0]:point[0]+size[0], point[1]:point[1]+size[1]] == 21):
+            # Check for future intersections to ensure complete tiling (hopefully!). Need to note how this works.
+            valid = True
+            # for offset in offsets:
+            #     if (0 <= point[0] + offset[0][0] < target_size[1]) and (0 <= point[1] + offset[0][1] < target_size[0]):
+            #         if (0 <= point[0] + offset[1][0] < target_size[1]) and (0 <= point[1] + offset[1][1] < target_size[0]):
+            #             if np.all(tiled_image[point[0] + offset[0][0], point[1] + offset[0][1]] == 21) and np.any(tiled_image[point[0] + offset[1][0], point[1] + offset[1][1]] != 21):
+            #                 valid = False
+            #         elif np.all(tiled_image[point[0] + offset[0][0], point[1] + offset[0][1]] == 21):
+            #             valid = False
+
+            # A couple of universal offsets that didn't fit the above format.
+            # if valid:
+            # Check the left and right to see if it will be possible to add any missing parts.
+            for j in range(size[1]):
+                if 0 <= point[0] - 1 and np.all(tiled_image[point[0] - 1, point[1] + j] == 21):
+                    if 0 <= point[0] - 3 and np.all(tiled_image[point[0] - 3, point[1] + j] == 21):
+                        if 0 <= point[0] - 4:
+                            if np.any(tiled_image[point[0] - 4, point[1] + j] != 21):
+                                valid = False
+                        else:
+                            valid = False
+                    elif 0 <= point[0] - 2:
+                        if np.any(tiled_image[point[0] - 2, point[1] + j] != 21):
+                            valid = False
+                    else:
+                        valid = False
+
+                if point[0] + size[0] + 0 < target_size[1] and np.all(tiled_image[point[0] + size[0] + 0, point[1] + j] == 21):
+                    if point[0] + size[0] + 2 < target_size[1] and np.all(tiled_image[point[0] + size[0] + 2, point[1] + j] == 21):
+                        if point[0] + size[0] + 3 < target_size[1]:
+                            if np.any(tiled_image[point[0] + size[0] + 3, point[1] + j] != 21):
+                                valid = False
+                        else:
+                            valid = False
+                    elif point[0] + size[0] + 1 < target_size[1]:
+                        if np.any(tiled_image[point[0] + size[0] + 1, point[1] + j] != 21):
+                            valid = False
+                    else:
+                        valid = False
+
+            # Check up and down to see if it will be possible to add any missing parts.
+            ########################################################################################
+            for j in range(size[0]):
+                if 0 <= point[1] - 1 and np.all(tiled_image[point[0] + j, point[1] - 1] == 21):
+                    if 0 <= point[1] - 3 and np.all(tiled_image[point[0] + j, point[1] - 3] == 21):
+                        if 0 <= point[1] - 4:
+                            if np.any(tiled_image[point[0] + j, point[1] - 4] != 21):
+                                valid = False
+                        else:
+                            valid = False
+                    elif 0 <= point[1] - 2:
+                        if np.any(tiled_image[point[0] + j, point[1] - 2] != 21):
+                            valid = False
+                    else:
+                        valid = False
+
+                if point[1] + size[1] + 0 < target_size[0] and np.all(tiled_image[point[0] + j, point[1] + size[1] + 0] == 21):
+                    if point[1] + size[1] + 2 < target_size[0] and np.all(tiled_image[point[0] + j, point[1] + size[1] + 2] == 21):
+                        if point[1] + size[1] + 3 < target_size[0]:
+                            if np.any(tiled_image[point[0] + j, point[1] + size[1] + 3] != 21):
+                                valid = False
+                        else:
+                            valid = False
+                    elif point[1] + size[1] + 1 < target_size[0]:
+                        if np.any(tiled_image[point[0] + j, point[1] + size[1] + 1] != 21):
+                            valid = False
+                    else:
+                        valid = False
+            ########################################################################################
+            # Seems unnecessary when using ordered points.
+            # Check for corner below
+            # if point[0] + size[0] + 2 < target_size[1] and np.all(tiled_image[point[0] + size[0] + 1][point[1]] == 21):
+            #     if 0 <= point[1] - 1 and np.any(tiled_image[point[0] + size[0] + 1][point[1] - 1] != 21):
+            #         if np.all(tiled_image[point[0] + size[0] + 2][point[1] - 1] == 21):
+            #             if 0 <= point[1] - 4 and np.any(tiled_image[point[0] + size[0] + 2][point[1] - 4] != 21):
+            #                 valid = False
+            #             elif 0 <= point[1] - 2 and np.any(tiled_image[point[0] + size[0] + 2][point[1] - 2] != 21):
+            #                 valid = False
+            #
+            # # Check for corner to the right
+            # if point[1] + size[1] + 2 < target_size[0] and np.all(tiled_image[point[0]][point[1] + size[1] + 1] == 21):
+            #     if 0 <= point[0] - 1 and np.any(tiled_image[point[0] - 1][point[1] + size[1] + 1] != 21):
+            #         if np.all(tiled_image[point[0] - 1][point[1] + size[1] + 2] == 21):
+            #             if 0 <= point[0] - 4 and np.any(tiled_image[point[0] - 4][point[1] + size[1] + 2] != 21):
+            #                 valid = False
+            #             elif 0 <= point[0] - 2 and np.any(tiled_image[point[0] - 2][point[1] + size[1] + 2] != 21):
+            #                 valid = False
+            #######################################################################################
+
+        if valid:
+            # Calculating the average color of the part. Not yet converting to Lego colors.
+            colors.append(np.mean(scaled_image[point[0]:point[0]+size[0], point[1]:point[1]+size[1], :], axis=(0, 1)))
+
+            # Need to scale the original section coordinates. Simpler to use scaled because of cropping.
+            # original_section = np.array(original_image.crop((point[0], point[1], point[0] + size[0], point[1] + size[1]))
+            original_section = scaled_image[point[0]:point[0]+size[0], point[1]:point[1]+size[1]]
+
+            new_section = original_section.copy()
+            new_section[:][:] = colors[-1]
+
+            similarity_score = np.mean((new_section - original_section) ** 2)
+
+            scores.append(similarity_score)
+        else:
+            scores.append(123456)
+            colors.append([255, 255, 255])
+
+    best_index = np.argmin(scores)
+
+    if scores[best_index] == 123456:
+        return None
+    else:
+        return Part(point, sizes[best_index], colors[best_index])
+
+
 used_colors = {"0"}
 
 # Example usage
@@ -253,6 +472,6 @@ used_colors = {"0"}
 # image_path = "input/Dunwall Clock Tower.jpg"
 # image = Image.open(image_path).convert("RGB")
 #
-# process_image(image, color_palette, color_ids, 'c', weight=10)
-#
+# process_image(image, color_palette, color_ids, 'new_tiling_method', weight=10, algorithm="hi", target_size=24, width_or_height="Height")
+
 # print(used_colors)

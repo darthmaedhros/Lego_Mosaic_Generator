@@ -27,8 +27,10 @@ def generate_mosaic():
             processed_image = Image.open('horizontal_output.png')
         elif selected_option == 't':
             processed_image = Image.open('top_down_output.png')
-        else:
+        elif selected_option == 'c':
             processed_image = Image.open('combined_output.png')
+        else:
+            processed_image = Image.open('new_tiling_palettised.png')
 
         # Display the processed image
         display_image(processed_image, output_label)
@@ -95,6 +97,8 @@ t_button.pack(anchor='w')
 c_button = tk.Radiobutton(option_frame, text="Best combination", variable=option, value="c")
 c_button.pack(anchor='w')
 
+n_button = tk.Radiobutton(option_frame, text="New tiling method", variable=option, value="new_tiling_method")
+n_button.pack(anchor='w')
 
 # Create the output size selection area
 size_frame = tk.LabelFrame(control_frame, text="Output Size")
