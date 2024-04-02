@@ -100,6 +100,9 @@ c_button.pack(anchor='w')
 n_button = tk.Radiobutton(option_frame, text="New tiling method", variable=option, value="new_tiling_method")
 n_button.pack(anchor='w')
 
+gvf_button = tk.Radiobutton(option_frame, text="Gradient Vector Field", variable=option, value="gvf")
+gvf_button.pack(anchor='w')
+
 # Create the output size selection area
 size_frame = tk.LabelFrame(control_frame, text="Output Size")
 size_frame.pack(pady=10)

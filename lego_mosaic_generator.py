@@ -1,8 +1,9 @@
 import csv
 import random
 
+import matplotlib.pyplot as plt
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 
 def hex_to_rgb(hex_value):
@@ -225,6 +226,9 @@ def process_image(image, given_color_palette, color_ids, alignment, weight, algo
     image = image.resize(target_size)
     image.save("resized_image.png")
 
+    if alignment == 'gvf':
+        get_gradient(image)
+
     if alignment == 'v' or alignment == 'c':
         cell_width = 2
         cell_height = 5
@@ -298,6 +302,7 @@ class Part:
         self.size = size
         self.color = color
 
+        # Pretty sure left and right are mixed up here.
         self.top_right_point = [self.pos[0] + self.size[0], self.pos[1]]
         self.bottom_left_point = [self.pos[0], self.pos[1] + self.size[1]]
 
@@ -458,12 +463,45 @@ def best_part(original_image, scaled_image, tiled_image, point, target_size):
     best_index = np.argmin(scores)
 
     if scores[best_index] == 123456:
+        print("Oh, interesting!")
         return None
     else:
         return Part(point, sizes[best_index], colors[best_index])
 
 
 used_colors = {"0"}
+
+
+# Rotated Tiles (Gradient Vector Field Based)
+def get_gradient(image):
+    #  Quiver Demo
+    # X = np.arange(-10, 10, 1)
+    # Y = np.arange(-10, 10, 1)
+    # U, V = np.meshgrid(X, Y)
+    #
+    # fig, ax = plt.subplots()
+    # q = ax.quiver(X, Y, U, V)
+    # ax.quiverkey(q, X=0.3, Y=1.1, U=10,
+    #              label='Quiver key, length = 10', labelpos='E')
+    #
+    # plt.show()
+
+    image_grey = image.convert('L')
+    image_grey = image_grey.filter(ImageFilter.BLUR)
+    p = np.asarray(image_grey).astype('int8')
+    w, h = image.size
+    x, y = np.mgrid[0:w, 0:h]
+    gradient = np.gradient(p)
+    dy, dx = gradient[0], gradient[1]
+    skip = (slice(None,None,3), slice(None,None,3))
+
+    fig, ax = plt.subplots()
+    im = ax.imshow(image.transpose(Image.FLIP_TOP_BOTTOM), extent=[x.min(), x.max(), y.min(), y.max()])
+
+    plt.colorbar(im)
+    ax.quiver(x[skip], y[skip], dx[skip].T, dy[skip].T)
+    ax.set(aspect=1, title='Quiver Plot')
+    plt.show()
 
 # Example usage
 # csv_file = "restricted_colors.csv"
